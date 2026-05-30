@@ -1,0 +1,9 @@
+{
+    "name": "verifyblind/example-web-php",
+    "description": "VerifyBlind PHP Test Portal",
+    "type": "project",
+    "require": {
+        "php": ">=8.1",
+        "vlucas/phpdotenv": "^5.0"
+    }
+}
