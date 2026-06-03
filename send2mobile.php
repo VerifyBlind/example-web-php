@@ -1,16 +1,16 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>VerifyBlind - Uygulamaya Y&#246;nlendiriliyor</title>
     <style>
-        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f9fafb; }
+        body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F8FAFC; }
         .center { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; text-align: center; padding: 20px; }
-        .spinner { width: 48px; height: 48px; border: 4px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
+        .spinner { width: 48px; height: 48px; border: 4px solid #E2E8F0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        h2 { color: #111827; margin: 0; font-size: 20px; }
-        p { color: #6b7280; margin-top: 10px; }
+        h2 { color: #0F172A; margin: 0; font-size: 20px; }
+        p { color: #64748B; margin-top: 10px; }
         .error { color: #ef4444; }
     </style>
 </head>
@@ -29,7 +29,7 @@
     </div>
 
     <script src="https://cdn.verifyblind.com/sdk/v1/verifyblind.js"
-            integrity="sha384-UgvwkIkL/hfK2Ek3hcBYnhEk0+wzRP16wxvxhS0LgwMMC5UVQ63rQJJPJl319EcO"
+            integrity="sha384-ZY/0MGefmtHcoyjX8t8W9GeCHw9N1zXPnpNeoE1Ar83x1qQ5preylMndbWJ0AwTx"
             crossorigin="anonymous"></script>
     <script>
         (function () {
