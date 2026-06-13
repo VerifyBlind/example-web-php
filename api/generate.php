@@ -1,6 +1,8 @@
 <?php
 // POST /api/generate.php → /api/pop/generate proxy
 
+require_once __DIR__ . '/../sentry-bootstrap.php';
+
 $dotenvPath = __DIR__ . '/../.env';
 if (file_exists($dotenvPath)) {
     $lines = file($dotenvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
