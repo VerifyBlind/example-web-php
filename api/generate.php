@@ -1,19 +1,9 @@
 <?php
 // POST /api/generate.php → /api/pop/generate proxy
 
+// sentry-bootstrap loads .env (from outside docroot) into getenv()/$_ENV.
 require_once __DIR__ . '/../sentry-bootstrap.php';
-
-$dotenvPath = __DIR__ . '/../.env';
-if (file_exists($dotenvPath)) {
-    $lines = file($dotenvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        if (strpos($line, '=') !== false) {
-            [$key, $val] = explode('=', $line, 2);
-            $_ENV[trim($key)] = trim($val);
-        }
-    }
-}
+require_once __DIR__ . '/nonce-store.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -55,6 +45,14 @@ if ($curlError) {
     http_response_code(502);
     echo json_encode(['error' => 'API bağlantı hatası: ' . $curlError]);
     exit;
+}
+
+// On success, remember the nonce so verify.php can bind & one-time-consume it.
+if ($httpCode === 200) {
+    $decoded = json_decode($response, true);
+    if (is_array($decoded) && !empty($decoded['nonce']) && is_string($decoded['nonce'])) {
+        vb_nonce_put($decoded['nonce'], 600); // 10 min QR scan window
+    }
 }
 
 http_response_code($httpCode);

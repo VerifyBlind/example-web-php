@@ -5,9 +5,16 @@
 
 require_once __DIR__ . '/vendor/autoload.php';
 
-// .env'i yükle (api dosyalarındaki hafif parser ile aynı mantık) — DSN ortamdan okunur.
-$envPath = __DIR__ . '/.env';
-if (is_file($envPath)) {
+// Load .env once for every endpoint (api files require this bootstrap). Prefer a path
+// OUTSIDE the docroot so the secrets file is never web-servable; fall back to the local
+// project dir for `php -S` development. In production config comes from container env
+// vars (.dockerignore strips **/.env, and apache.conf denies dotfiles as defense-in-depth).
+$envCandidates = [
+    dirname(__DIR__) . '/.env', // outside docroot (Docker: /var/www/.env)
+    __DIR__ . '/.env',          // local dev fallback (NOT used in the image)
+];
+foreach ($envCandidates as $envPath) {
+    if (!is_file($envPath)) continue;
     foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) continue;
         [$k, $v] = explode('=', $line, 2);
@@ -18,6 +25,7 @@ if (is_file($envPath)) {
             $_ENV[$k] = $v;
         }
     }
+    break; // first existing file wins
 }
 
 $dsn = getenv('EXAMPLES_SENTRY_DSN') ?: ($_ENV['EXAMPLES_SENTRY_DSN'] ?? '');

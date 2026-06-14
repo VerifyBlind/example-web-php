@@ -1,19 +1,9 @@
 <?php
 // POST /api/verify.php → Enclave RSA-PSS SHA-256 imzasını doğrular (openssl CLI)
 
+// sentry-bootstrap loads .env (from outside docroot) into getenv()/$_ENV.
 require_once __DIR__ . '/../sentry-bootstrap.php';
-
-$dotenvPath = __DIR__ . '/../.env';
-if (file_exists($dotenvPath)) {
-    $lines = file($dotenvPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        if (strpos($line, '=') !== false) {
-            [$key, $val] = explode('=', $line, 2);
-            $_ENV[trim($key)] = trim($val);
-        }
-    }
-}
+require_once __DIR__ . '/nonce-store.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -95,5 +85,20 @@ if (!$isValid) {
 }
 
 $data = json_decode($payload, true);
+
+// Replay protection: bind the signed nonce to a session this portal generated and
+// consume it exactly once.
+$sessionNonce = is_array($data) ? ($data['nonce'] ?? '') : '';
+if (!is_string($sessionNonce) || $sessionNonce === '') {
+    http_response_code(400);
+    echo json_encode(['error' => 'Geçersiz oturum (nonce yok)']);
+    exit;
+}
+if (!vb_nonce_consume($sessionNonce)) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Oturum süresi dolmuş veya zaten kullanılmış']);
+    exit;
+}
+
 http_response_code(200);
 echo json_encode(['success' => true, 'data' => $data]);
