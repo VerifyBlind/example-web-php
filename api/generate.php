@@ -31,6 +31,8 @@ curl_setopt_array($ch, [
     CURLOPT_HTTPHEADER => [
         'Content-Type: application/json',
         'X-API-Key: ' . $apiKey,
+        // Tarayıcının dilini ilet → VerifyBlind hata mesajlarını tr/en lokalize etsin.
+        'Accept-Language: ' . ($_SERVER['HTTP_ACCEPT_LANGUAGE'] ?? 'tr'),
     ],
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_TIMEOUT => 10,
