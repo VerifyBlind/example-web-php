@@ -1,0 +1,24 @@
+# Composer dependencies
+vendor/
+
+# Environment — copy .env.example and fill in your API key
+.env
+.env.*
+!.env.example
+
+# PHP temp / cache
+*.log
+/cache/
+/tmp/
+/logs/
+*.php~
+*.php.bak
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.user
