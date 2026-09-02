@@ -1,0 +1,39 @@
+# VerifyBlind PHP örneği — paylaşımlı hosting için güvenlik varsayılanları.
+#
+# Docker imajında bu korumalar apache.conf'taki <VirtualHost> bloğundan gelir. Dosyaları
+# kendi sunucunuza (cPanel, Plesk, klasik paylaşımlı hosting) kopyaladığınızda VirtualHost
+# yapılandırmasına erişiminiz olmayabilir, bu yüzden aynı kurallar burada tekrarlanır.
+#
+# NOT: nginx .htaccess dosyalarını OKUMAZ. nginx kullanıyorsanız karşılıkları README'de.
+
+# Dizin listelemesini kapat
+Options -Indexes
+
+# Dotfile'ları asla servis etme: .env (API anahtarınız!), .git, .htaccess ...
+<FilesMatch "^\.">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Uygulamanın iç dizinleri web'den erişilebilir olmamalı. Dizin-göreli kalıp, örneği bir
+# alt dizine (ornek.com/verifyblind/) kurduğunuzda da çalışır.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^(vendor|tests)/ - [F,L]
+</IfModule>
+
+# Bağımlılık / build meta dosyaları
+<FilesMatch "^(composer\.(json|lock)|Dockerfile|apache\.conf)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
