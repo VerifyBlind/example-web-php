@@ -55,3 +55,28 @@ function vb_signature_is_valid($verifier, string $payload, string $signatureByte
         return false;
     }
 }
+
+/**
+ * PCR0 yetkilendirme imzasını doğrular — enclave'in halka açık kaynaktan yeniden üretilebilir
+ * şekilde derlenmiş sürüm olduğunu RELAY'E GÜVENMEDEN teyit etmenin ilk adımı.
+ *
+ * İmza girdisi: PCR0'ın hex gösterimi (96 karakter), UTF-8 bayt olarak.
+ * Anahtar: GET /api/public/developer-key → public_key (SPKI PEM).
+ *
+ * DİKKAT — padding bu dosyadaki diğer doğrulamadan FARKLI: enclave'in sonuç imzası RSA-PSS'tir
+ * (bu yüzden phpseclib gerekiyordu), PCR0 imzası ise RSA-PKCS#1 v1.5'tir. PHP'nin yerleşik
+ * openssl_verify()'ı tam olarak PKCS#1 v1.5 yapar, dolayısıyla burada ek kütüphane GEREKMEZ.
+ *
+ * İkinci adım (bu fonksiyonun kapsamı dışında): $pcr0Hex değerini Enclave repo'sunun son
+ * release'indeki expected_pcr.json ile karşılaştırın.
+ *
+ * @return bool İmza geçerliyse true. Anahtar okunamazsa false (istisna fırlatmaz).
+ */
+function vb_verify_pcr0_signature(string $developerPubPem, string $pcr0Hex, string $signatureB64): bool
+{
+    $sig = base64_decode($signatureB64, true);
+    if ($sig === false) {
+        return false;
+    }
+    return openssl_verify($pcr0Hex, $sig, $developerPubPem, OPENSSL_ALGO_SHA256) === 1;
+}

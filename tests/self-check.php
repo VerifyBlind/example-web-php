@@ -90,6 +90,34 @@ try {
 }
 check('Bozuk public key exception fırlatır (401 değil, 502)', $threw);
 
+// ------------------------------------------------- 3) PCR0 YETKİLENDİRME İMZASI
+// Enclave'in halka açık kaynaktan derlendiğini RELAY'E GÜVENMEDEN doğrulamanın ilk adımı.
+// Padding burada PKCS#1 v1.5'tir (sonuç imzası PSS'ti) — bu yüzden phpseclib GEREKMEZ.
+echo "
+3) PCR0 YETKİLENDİRME İMZASI (RSA-PKCS#1 v1.5, SHA-256)
+";
+
+$devKey = openssl_pkey_new(['private_key_bits' => 2048, 'private_key_type' => OPENSSL_KEYTYPE_RSA]);
+if ($devKey === false) {
+    check('ext-openssl ile anahtar üretilebiliyor', false, 'openssl_pkey_new başarısız');
+} else {
+    $devPubPem = openssl_pkey_get_details($devKey)['key'];
+    $pcr0 = str_repeat('a', 96);
+    openssl_sign($pcr0, $rawSig, $devKey, OPENSSL_ALGO_SHA256);
+    $sigB64 = base64_encode($rawSig);
+
+    check('Geçerli PCR0 imzası kabul edilir',
+        vb_verify_pcr0_signature($devPubPem, $pcr0, $sigB64) === true);
+    check('Başka bir PCR0 için imza reddedilir',
+        vb_verify_pcr0_signature($devPubPem, str_repeat('b', 96), $sigB64) === false);
+    check('Base64 olmayan imza reddedilir (exception değil)',
+        vb_verify_pcr0_signature($devPubPem, $pcr0, 'bu-base64-degil!!') === false);
+    check('Bozuk public key reddedilir (exception değil)',
+        vb_verify_pcr0_signature('-----BEGIN PUBLIC KEY-----
+nope
+-----END PUBLIC KEY-----', $pcr0, $sigB64) === false);
+}
+
 // ------------------------------------------------------------------- ÖZET
 echo "\n", str_repeat('=', 72), "\n";
 if ($fail === 0) {
