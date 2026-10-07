@@ -123,3 +123,9 @@ location ~ ^/(vendor|tests)/ { deny all; }
 ```
 
 🌐 [verifyblind.com](https://verifyblind.com) · 🧩 [Next.js example](https://github.com/VerifyBlind/example-web-nextjs) · 🧩 [.NET example](https://github.com/VerifyBlind/example-web-dotnet)
+
+---
+
+## Lisans · License
+
+Apache License 2.0 — bkz. / see [LICENSE](LICENSE).
