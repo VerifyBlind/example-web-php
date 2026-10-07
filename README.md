@@ -13,11 +13,17 @@ ise **sunucu-decrypt (callback/webhook)** varyantını gösterir.
 ### Akış
 1. **Sunucu-taraflı proxy** — Tarayıcı `POST /api/generate.php` çağırır; sunucu `X-API-Key`'i ekleyip
    VerifyBlind `POST /api/pop/generate`'e iletir ve bir `nonce` döner. **API anahtarı tarayıcıya hiç
-   gösterilmez.** (`api/generate.php`)
+   gösterilmez.** Tarayıcıdan `public_key`, `cf_token`, `sdk_version` (ve `additional_data`) aynen
+   alınır; **ne sorulacağına (`validations`) sunucu karar verir** — tarayıcıdaki istek değiştirilebilir,
+   `"18+"` yerine `"1+"` soran biri de imzalı `age: true` alır. Bu demo ziyaretçinin seçimini yalnız bir
+   izin listesinden (`18+`, `user_id`) kabul eder; gerçek bir site `validations`'ı kendi ayarından koyar.
+   Sorulan koşul nonce ile birlikte saklanır. (`api/generate.php`)
 2. **Doğrulama** — Kullanıcı QR'ı VerifyBlind mobil ile okutur; QR'ı `index.html` içinde CDN'den
    yüklenen Web SDK (`verifyblind.js`) çizer. Doğrulama bitince partner'a imzalı bir token döner.
 3. **İmza kontrolü** — `api/verify.php` token'ı alır, enclave public key'i ile **RSA-PSS imzasını**
-   doğrular ve nonce'u tek-kullanımlık tüketir (`api/nonce-store.php`).
+   doğrular, nonce'u tek-kullanımlık tüketir (`api/nonce-store.php`) ve sonucu **nonce ile saklanan
+   koşula göre** okur: imzalı `validations.age_condition` varsa (yeni enclave sürümleri) sorulan
+   koşula eşit olmalıdır.
 
 > **Neden phpseclib3?** PHP'nin yerleşik `openssl_verify()` fonksiyonu yalnızca PKCS#1 v1.5
 > destekler (padding parametresi yoktur), enclave ise **RSA-PSS** ile imzalar. Doğrulama bu yüzden
@@ -73,12 +79,19 @@ An example of integrating VerifyBlind into a PHP website (PHP + Apache). It is t
 ### Flow
 1. **Server-side proxy** — The browser calls `POST /api/generate.php`; the server adds the `X-API-Key`
    and forwards it to VerifyBlind `POST /api/pop/generate`, returning a `nonce`. **The API key is never
-   exposed to the browser.** (`api/generate.php`)
+   exposed to the browser.** `public_key`, `cf_token`, `sdk_version` (and `additional_data`) are taken
+   from the browser unchanged; **the server decides what is asked (`validations`)** — the browser
+   request can be edited, and someone who asks `"1+"` instead of `"18+"` also gets a signed `age: true`.
+   This demo accepts the visitor's choice only from an allow-list (`18+`, `user_id`); a real site sets
+   `validations` from its own configuration. The asked condition is stored with the nonce.
+   (`api/generate.php`)
 2. **Verification** — The user scans the QR with VerifyBlind mobile; the QR itself is rendered by the
    Web SDK (`verifyblind.js`) that `index.html` loads from the CDN. On success a signed token is
    returned to the partner.
 3. **Signature check** — `api/verify.php` takes the token, verifies the **RSA-PSS signature** with the
-   enclave public key, and consumes the nonce once (`api/nonce-store.php`).
+   enclave public key, consumes the nonce once (`api/nonce-store.php`), and reads the result
+   **against the condition stored with the nonce**: if the signed `validations.age_condition` is
+   present (newer enclave releases) it must equal the asked condition.
 
 > **Why phpseclib3?** PHP's built-in `openssl_verify()` only supports PKCS#1 v1.5 (it has no padding
 > parameter), while the enclave signs with **RSA-PSS**. Verification therefore uses the pure-PHP

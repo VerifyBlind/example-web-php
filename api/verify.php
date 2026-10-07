@@ -80,11 +80,30 @@ if (!is_string($sessionNonce) || $sessionNonce === '') {
     echo json_encode(['error' => 'Geçersiz oturum (nonce yok)']);
     exit;
 }
-if (!vb_nonce_consume($sessionNonce)) {
+$asked = vb_nonce_consume($sessionNonce);
+if ($asked === null) {
     http_response_code(401);
     echo json_encode(['error' => 'Oturum süresi dolmuş veya zaten kullanılmış']);
     exit;
 }
 
+// Read the result against what WE asked at generate (stored with the nonce), never against what
+// the browser says it asked. `validations.age` is the enclave's answer to the condition it was
+// asked. Newer enclave releases also sign that condition as `validations.age_condition`; when
+// present it must equal the stored condition. When absent (older enclave), the stored condition is
+// what `age` refers to — safe only because generate.php set validations on the server.
+$validations = is_array($data['validations'] ?? null) ? $data['validations'] : [];
+if (!isset($asked['age'])) {
+    if (array_key_exists('age', $validations)) {
+        http_response_code(401);
+        echo json_encode(['error' => 'Yaş sorulmadığı halde yaş sonucu geldi']);
+        exit;
+    }
+} elseif (array_key_exists('age_condition', $validations) && $validations['age_condition'] !== $asked['age']) {
+    http_response_code(401);
+    echo json_encode(['error' => 'Sorulan yaş koşulu eşleşmiyor']);
+    exit;
+}
+
 http_response_code(200);
-echo json_encode(['success' => true, 'data' => $data]);
+echo json_encode(['success' => true, 'data' => $data, 'asked' => (object) $asked]);
