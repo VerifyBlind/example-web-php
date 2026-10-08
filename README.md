@@ -23,8 +23,8 @@ ise **sunucu-decrypt (callback/webhook)** varyantını gösterir.
    yüklenen Web SDK (`verifyblind.js`) çizer. Doğrulama bitince partner'a imzalı bir token döner.
 3. **İmza kontrolü** — `api/verify.php` token'ı alır, enclave public key'i ile **RSA-PSS imzasını**
    doğrular, nonce'u tek-kullanımlık tüketir (`api/nonce-store.php`) ve sonucu **nonce ile saklanan
-   koşula göre** okur: imzalı `validations.age_condition` varsa (yeni enclave sürümleri) sorulan
-   koşula eşit olmalıdır.
+   koşula göre** okur: imzalı `validations.age_condition` zorunludur ve sorulan koşula eşit olmalıdır;
+   yoksa ya da farklıysa sonuç reddedilir.
 
 > **Neden phpseclib3?** PHP'nin yerleşik `openssl_verify()` fonksiyonu yalnızca PKCS#1 v1.5
 > destekler (padding parametresi yoktur), enclave ise **RSA-PSS** ile imzalar. Doğrulama bu yüzden
@@ -93,8 +93,8 @@ An example of integrating VerifyBlind into a PHP website (PHP + Apache). It is t
    returned to the partner.
 3. **Signature check** — `api/verify.php` takes the token, verifies the **RSA-PSS signature** with the
    enclave public key, consumes the nonce once (`api/nonce-store.php`), and reads the result
-   **against the condition stored with the nonce**: if the signed `validations.age_condition` is
-   present (newer enclave releases) it must equal the asked condition.
+   **against the condition stored with the nonce**: the signed `validations.age_condition` is required
+   and must equal the asked condition; missing or different → rejected.
 
 > **Why phpseclib3?** PHP's built-in `openssl_verify()` only supports PKCS#1 v1.5 (it has no padding
 > parameter), while the enclave signs with **RSA-PSS**. Verification therefore uses the pure-PHP

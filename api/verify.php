@@ -89,9 +89,8 @@ if ($asked === null) {
 
 // Read the result against what WE asked at generate (stored with the nonce), never against what
 // the browser says it asked. `validations.age` is the enclave's answer to the condition it was
-// asked. Newer enclave releases also sign that condition as `validations.age_condition`; when
-// present it must equal the stored condition. When absent (older enclave), the stored condition is
-// what `age` refers to — safe only because generate.php set validations on the server.
+// asked. The enclave always signs that condition as `validations.age_condition`; it must be present
+// and equal the stored condition.
 $validations = is_array($data['validations'] ?? null) ? $data['validations'] : [];
 if (!isset($asked['age'])) {
     if (array_key_exists('age', $validations)) {
@@ -99,7 +98,7 @@ if (!isset($asked['age'])) {
         echo json_encode(['error' => 'Yaş sorulmadığı halde yaş sonucu geldi']);
         exit;
     }
-} elseif (array_key_exists('age_condition', $validations) && $validations['age_condition'] !== $asked['age']) {
+} elseif (!is_bool($validations['age'] ?? null) || ($validations['age_condition'] ?? null) !== $asked['age']) {
     http_response_code(401);
     echo json_encode(['error' => 'Sorulan yaş koşulu eşleşmiyor']);
     exit;
