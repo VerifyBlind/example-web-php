@@ -65,11 +65,11 @@ if (!$allowed) {
     exit;
 }
 
-// Keep public_key, cf_token (dropping it silently disables bot protection), sdk_version and
-// additional_data (the mobile SDKs call it custom_data) from the client; validations come from
-// the server (see above).
+// Keep public_key, sdk_version and additional_data (the mobile SDKs call it custom_data) from the
+// client; validations come from the server (see above). The widget has no bot protection: a real
+// site protects this endpoint itself (session, rate limit, own bot check).
 $out = new stdClass();
-foreach (['public_key', 'cf_token', 'sdk_version', 'additional_data', 'custom_data'] as $field) {
+foreach (['public_key', 'sdk_version', 'additional_data', 'custom_data'] as $field) {
     if (property_exists($in, $field)) $out->$field = $in->$field;
 }
 $out->validations = (object) $asked;

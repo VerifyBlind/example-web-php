@@ -182,8 +182,8 @@
   document.getElementById('vb-logo').src = window.__VB_CDN + '/images/logo.png';
   (function() {
     var s = document.createElement('script');
-    s.src = window.__VB_CDN + '/sdk/v1.0.1/verifyblind.js';
-    s.integrity = 'sha384-DkPyvLVGNq29kFGtgdih7jgC8YhOpGoyIK6PPPSe2atkZju7SlMbKRPLbp/1gYw1';
+    s.src = window.__VB_CDN + '/sdk/v1.0.2/verifyblind.js';
+    s.integrity = 'sha384-WsoGN17VWvGw/+kEmXv4Y2wlsuNpMyIdT3UBDgeAxtGIgOrlQvgoSj/IuPh747NK';
     s.crossOrigin = 'anonymous';
     document.head.appendChild(s);
   })();
@@ -421,7 +421,6 @@ function handleStart() {
         containerId: 'verifyblind-widget',
         generateUrl: getGenerateUrl(),
         apiUrl: window.__VB_API || undefined,
-        captcha: false,
         debug: true,          // SDK'nın console.group ile ayrıntılı log basmasını açar
         onEvent: logEvent,    // her yaşam-döngüsü olayını canlı panele yansıtır
         payload: { validations: getValidations() },
