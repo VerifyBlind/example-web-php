@@ -21,16 +21,26 @@ ise **sunucu-decrypt (callback/webhook)** varyantını gösterir.
    ucu kendi tarafında korur (ör. oturum, hız sınırı ya da kendi bot koruması). (`api/generate.php`)
 2. **Doğrulama** — Kullanıcı QR'ı VerifyBlind mobil ile okutur; QR'ı `index.html` içinde CDN'den
    yüklenen Web SDK (`verifyblind.js`) çizer. Doğrulama bitince partner'a imzalı bir token döner.
-3. **İmza kontrolü** — `api/verify.php` token'ı alır, enclave public key'i ile **RSA-PSS imzasını**
-   doğrular, nonce'u tek-kullanımlık tüketir (`api/nonce-store.php`) ve sonucu **nonce ile saklanan
-   koşula göre** okur: imzalı `validations.age_condition` zorunludur ve sorulan koşula eşit olmalıdır;
-   yoksa ya da farklıysa sonuç reddedilir.
+3. **İmza kontrolü** — `api/verify.php` token'ı resmi
+   [`verifyblind/verifyblind-php`](https://github.com/VerifyBlind/verifyblind-sdk-php) paketine verir
+   (`Verifier::verify()`). Paket enclave public key'i ile **RSA-PSS imzasını** doğrular, nonce'u
+   `api/nonce-store.php` üzerinden tek seferlik tüketir ve sonucu **nonce ile saklanan koşula göre**
+   okur: imzalı `validations.age_condition` zorunludur ve sorulan koşula eşit olmalıdır; yoksa ya da
+   farklıysa sonuç reddedilir. Bu portal test partneri olduğu için demo kart sonucu da kabul edilir
+   (`allowTestCards => true`); gerçek bir sitede bu ayar kapalı kalır.
 
-> **Neden phpseclib3?** PHP'nin yerleşik `openssl_verify()` fonksiyonu yalnızca PKCS#1 v1.5
-> destekler (padding parametresi yoktur), enclave ise **RSA-PSS** ile imzalar. Doğrulama bu yüzden
-> saf PHP olan [phpseclib3](https://phpseclib.com/) ile yapılır — `shell_exec`/`openssl` CLI'a
-> ihtiyaç yoktur, dolayısıyla shell'in `disable_functions` ile kapatıldığı paylaşımlı hosting'lerde
-> de çalışır. Tek gereksinim `composer install`; PHP eklentisi gerekmez.
+```php
+$verifier = new Verifier(['allowTestCards' => true, 'cache' => new FileCache()]);
+$result = $verifier->verify($token, function (string $nonce): ?array {
+    return vb_nonce_consume($nonce); // tek seferlik al-ve-sil; sorulanı döndürür, yoksa null
+});
+```
+
+> **Neden kütüphane?** PHP'nin yerleşik `openssl_verify()` fonksiyonu yalnızca PKCS#1 v1.5
+> destekler, enclave ise **RSA-PSS** ile imzalar. Paket bunu saf PHP olan phpseclib3 ile yapar;
+> `shell_exec`/`openssl` CLI'a ve PHP eklentisine ihtiyaç yoktur, dolayısıyla shell'in
+> `disable_functions` ile kapatıldığı paylaşımlı hosting'lerde de çalışır. Tek gereksinim
+> `composer install`. Kimlik kodları (`user_id`, `nsbd_id`, `doc_id`) hiçbir log'a yazılmaz.
 
 ### Çalıştırma
 ```bash
@@ -51,7 +61,7 @@ Shell erişimi (`shell_exec`, `exec`) **gerekmez** — `disable_functions` ile k
 
 ```bash
 composer install --no-dev --optimize-autoloader   # vendor/ üretir
-php tests/self-check.php                          # kurulum + imza doğrulama denetimi
+php tests/self-check.php                          # kurulum denetimi
 ```
 
 `self-check` her satırda `[ OK ]` veriyorsa kurulum bu örneği çalıştırabilir. Composer'ı sunucuda
@@ -91,16 +101,26 @@ An example of integrating VerifyBlind into a PHP website (PHP + Apache). It is t
 2. **Verification** — The user scans the QR with VerifyBlind mobile; the QR itself is rendered by the
    Web SDK (`verifyblind.js`) that `index.html` loads from the CDN. On success a signed token is
    returned to the partner.
-3. **Signature check** — `api/verify.php` takes the token, verifies the **RSA-PSS signature** with the
-   enclave public key, consumes the nonce once (`api/nonce-store.php`), and reads the result
-   **against the condition stored with the nonce**: the signed `validations.age_condition` is required
-   and must equal the asked condition; missing or different → rejected.
+3. **Signature check** — `api/verify.php` hands the token to the official
+   [`verifyblind/verifyblind-php`](https://github.com/VerifyBlind/verifyblind-sdk-php) package
+   (`Verifier::verify()`). The package verifies the **RSA-PSS signature** with the enclave public key,
+   consumes the nonce once through `api/nonce-store.php`, and reads the result **against the condition
+   stored with the nonce**: the signed `validations.age_condition` is required and must equal the asked
+   condition; missing or different → rejected. This portal is a test partner, so demo-card results are
+   accepted too (`allowTestCards => true`); a real site leaves that off.
 
-> **Why phpseclib3?** PHP's built-in `openssl_verify()` only supports PKCS#1 v1.5 (it has no padding
-> parameter), while the enclave signs with **RSA-PSS**. Verification therefore uses the pure-PHP
-> [phpseclib3](https://phpseclib.com/) — no `shell_exec`/`openssl` CLI required, so it also works on
-> shared hosts where the shell is disabled via `disable_functions`. The only requirement is
-> `composer install`; no PHP extension is needed.
+```php
+$verifier = new Verifier(['allowTestCards' => true, 'cache' => new FileCache()]);
+$result = $verifier->verify($token, function (string $nonce): ?array {
+    return vb_nonce_consume($nonce); // one-time get-and-delete; returns what was asked, or null
+});
+```
+
+> **Why a library?** PHP's built-in `openssl_verify()` only supports PKCS#1 v1.5, while the enclave
+> signs with **RSA-PSS**. The package does it with the pure-PHP phpseclib3 — no `shell_exec`/`openssl`
+> CLI and no PHP extension required, so it also works on shared hosts where the shell is disabled via
+> `disable_functions`. The only requirement is `composer install`. Identity codes (`user_id`,
+> `nsbd_id`, `doc_id`) are never written to any log.
 
 ### Running
 ```bash
@@ -122,7 +142,7 @@ Shell access (`shell_exec`, `exec`) is **not** required — it may well be disab
 
 ```bash
 composer install --no-dev --optimize-autoloader   # creates vendor/
-php tests/self-check.php                          # checks the install + signature verification
+php tests/self-check.php                          # checks the install
 ```
 
 If `self-check` prints `[ OK ]` on every line, the host can run this example. If you cannot run

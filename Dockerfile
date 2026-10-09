@@ -7,7 +7,7 @@ WORKDIR /build
 # Portal composer dosyalarını kopyala
 COPY example-web-php/composer.json example-web-php/
 
-# Portal bağımlılıklarını yükle (phpseclib3 + dotenv + sentry)
+# Portal bağımlılıklarını yükle (verifyblind/verifyblind-php + dotenv + sentry)
 WORKDIR /build/example-web-php
 RUN composer install --no-dev --optimize-autoloader
 

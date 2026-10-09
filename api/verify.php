@@ -1,108 +1,74 @@
 <?php
-// POST /api/verify.php → Enclave RSA-PSS SHA-256 imzasını doğrular (phpseclib3)
+// POST /api/verify.php → doğrulama sonucunu verifyblind/verifyblind-php ile kontrol eder:
+// enclave imzası (RSA-PSS SHA-256, salt 32), nonce'un tek seferlik tüketimi ve sorulan doğrulamalar.
 
 // sentry-bootstrap loads .env (from outside docroot) into getenv()/$_ENV.
-// It also pulls in vendor/autoload.php, which is where phpseclib3 comes from.
+// It also pulls in vendor/autoload.php, which is where the VerifyBlind library comes from.
 require_once __DIR__ . '/../sentry-bootstrap.php';
 require_once __DIR__ . '/nonce-store.php';
-// İmza doğrulaması — phpseclib3'ün neden gerektiği bu dosyada anlatılıyor.
-// Aynı fonksiyonları tests/self-check.php de kullanır.
-require_once __DIR__ . '/pss-verify.php';
+
+use VerifyBlind\Cache\FileCache;
+use VerifyBlind\Exception\AskedMismatchException;
+use VerifyBlind\Exception\InvalidSignatureException;
+use VerifyBlind\Exception\InvalidTokenException;
+use VerifyBlind\Exception\KeyUnavailableException;
+use VerifyBlind\Exception\NonceException;
+use VerifyBlind\Exception\VerifyBlindException;
+use VerifyBlind\Verifier;
 
 header('Content-Type: application/json; charset=utf-8');
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['error' => 'Method Not Allowed']);
+function vb_fail(int $status, string $error): void {
+    http_response_code($status);
+    echo json_encode(['error' => $error]);
     exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    vb_fail(405, 'Method Not Allowed');
 }
 
 $apiUrl = $_ENV['VERIFYBLIND_API_URL'] ?? getenv('VERIFYBLIND_API_URL') ?: 'https://api.verifyblind.com';
 
-$rawBody = file_get_contents('php://input');
-$body = json_decode($rawBody, true);
-
-if (empty($body['token'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'token gerekli']);
-    exit;
+$body = json_decode(file_get_contents('php://input'), true);
+if (!is_array($body) || empty($body['token']) || !is_string($body['token'])) {
+    vb_fail(400, 'token gerekli');
 }
 
-$signed = json_decode(base64_decode($body['token']), true);
-if (!$signed || empty($signed['payload']) || empty($signed['signature'])) {
-    http_response_code(400);
-    echo json_encode(['error' => 'Geçersiz token formatı']);
-    exit;
-}
+$verifier = new Verifier([
+    'apiUrl' => $apiUrl,
+    // Bu portal test partneri: demo kartla yapılan doğrulama da kabul edilir. Gerçek sitede kapalı kalır.
+    'allowTestCards' => true,
+    // Enclave anahtarı istekler arasında saklanır (yalnız açık anahtar, kimlik kodu değil).
+    'cache' => new FileCache(),
+]);
 
-$payload  = $signed['payload'];
-$sigBytes = base64_decode($signed['signature']);
+// Replay protection: the signed nonce must be one this portal generated; it is consumed exactly once and
+// returns what WE asked at generate (never what the browser says it asked).
+$asked = null;
+$consume = function (string $nonce) use (&$asked): ?array {
+    $asked = vb_nonce_consume($nonce);
+    return $asked;
+};
 
-// Enclave public key'i al
-$ch = curl_init("$apiUrl/api/public/enclave-key");
-curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_TIMEOUT => 5]);
-$pubKeyBase64 = trim(curl_exec($ch));
-$keyHttpCode  = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-curl_close($ch);
-
-if ($keyHttpCode !== 200 || empty($pubKeyBase64)) {
-    http_response_code(502);
-    echo json_encode(['error' => 'Enclave public key alınamadı']);
-    exit;
-}
-
-// Enclave imza sözleşmesi: RSA-PSS, SHA-256, MGF1-SHA-256, saltLength=32
 try {
-    $verifier = vb_enclave_verifier(vb_enclave_key_to_pem($pubKeyBase64));
-} catch (\Throwable $e) {
-    // Key'in kendisi okunamıyor: bu bir imza reddi DEĞİL, altyapı sorunu. 401 dönmek
+    $result = $verifier->verify($body['token'], $consume);
+} catch (InvalidTokenException $e) {
+    vb_fail(400, 'Geçersiz token formatı');
+} catch (InvalidSignatureException $e) {
+    vb_fail(401, 'Geçersiz imza');
+} catch (KeyUnavailableException $e) {
+    // Anahtar alınamadı ya da okunamadı: bu bir imza reddi DEĞİL, altyapı sorunu. 401 dönmek
     // partner'ı "token bozuk" diye yanlış yöne sürükler.
-    http_response_code(502);
-    echo json_encode(['error' => 'Enclave public key okunamadı']);
-    exit;
-}
-
-$isValid = vb_signature_is_valid($verifier, $payload, $sigBytes);
-
-if (!$isValid) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Geçersiz imza']);
-    exit;
-}
-
-$data = json_decode($payload, true);
-
-// Replay protection: bind the signed nonce to a session this portal generated and
-// consume it exactly once.
-$sessionNonce = is_array($data) ? ($data['nonce'] ?? '') : '';
-if (!is_string($sessionNonce) || $sessionNonce === '') {
-    http_response_code(400);
-    echo json_encode(['error' => 'Geçersiz oturum (nonce yok)']);
-    exit;
-}
-$asked = vb_nonce_consume($sessionNonce);
-if ($asked === null) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Oturum süresi dolmuş veya zaten kullanılmış']);
-    exit;
-}
-
-// Read the result against what WE asked at generate (stored with the nonce), never against what
-// the browser says it asked. `validations.age` is the enclave's answer to the condition it was
-// asked. The enclave always signs that condition as `validations.age_condition`; it must be present
-// and equal the stored condition.
-$validations = is_array($data['validations'] ?? null) ? $data['validations'] : [];
-if (!isset($asked['age'])) {
-    if (array_key_exists('age', $validations)) {
-        http_response_code(401);
-        echo json_encode(['error' => 'Yaş sorulmadığı halde yaş sonucu geldi']);
-        exit;
-    }
-} elseif (!is_bool($validations['age'] ?? null) || ($validations['age_condition'] ?? null) !== $asked['age']) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Sorulan yaş koşulu eşleşmiyor']);
-    exit;
+    vb_fail(502, 'Enclave public key alınamadı');
+} catch (NonceException $e) {
+    vb_fail(401, 'Oturum süresi dolmuş veya zaten kullanılmış');
+} catch (AskedMismatchException $e) {
+    vb_fail(401, isset($asked['age']) ? 'Sorulan yaş koşulu eşleşmiyor' : 'Yaş sorulmadığı halde yaş sonucu geldi');
+} catch (VerifyBlindException $e) {
+    // Mesajlar kimlik kodu içermez; yine de istemciye yalnız sabit hata kodu dönülür.
+    vb_fail($e->getHttpStatus(), $e->getErrorCode());
 }
 
 http_response_code(200);
-echo json_encode(['success' => true, 'data' => $data, 'asked' => (object) $asked]);
+echo json_encode(['success' => true, 'data' => $result->payload(), 'asked' => (object) $result->asked()]);
